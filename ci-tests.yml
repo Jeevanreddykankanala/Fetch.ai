@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-if-files-changed:
+    runs-on: ubuntu-latest
+    outputs:
+      uagents: ${{ steps.files-changed.outputs.uagents }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: files-changed
+        with:
+          filters: |
+            uagents:
+              - 'python/**'
+              - '.github/**'
+
+  tests:
+    name: Tests
+    needs: check-if-files-changed
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./python
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        include:
+          - os: macos-latest
+            python-version: "3.10.10"
+          - os: windows-latest
+            python-version: "3.10.10"
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        uses: actions/checkout@v3
+
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          version: 1.3.2
+
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      - if: ${{
+          needs.check-if-files-changed.outputs.uagents == 'true' &&
+          steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+          }}
+        name: Install dependencies
+        run: poetry install --no-interaction --no-root
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        run: poetry install --no-interaction
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        name: Run tests
+        run: |
+          source $VENV
+          poetry run pytest
+
+  linting:
+    name: Lint & Formatting
+    needs: check-if-files-changed
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./python
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+
+    steps:
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        uses: actions/checkout@v3
+
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v2
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      - if: ${{
+          needs.check-if-files-changed.outputs.uagents == 'true' &&
+          steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+          }}
+        name: Install dependencies
+        run: poetry install -E all --no-interaction --no-root
+
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        run: poetry install -E all --no-interaction
+      - if: ${{ needs.check-if-files-changed.outputs.uagents == 'true' }}
+        run: poetry run ruff check .
